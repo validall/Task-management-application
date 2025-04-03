@@ -14,109 +14,95 @@
   let editID = "";
 
   // Event listener for form submission
-  form.addEventListener("submit", function (e) {
-    e.preventDefault(); // Prevent the form from refreshing the page
+  form.addEventListener("submit", handleFormSubmit);
+
+  // Event listener for task actions
+  list.addEventListener("click", handleTaskActions);
+
+  // Event listener for clearing all tasks
+  clearBtn.addEventListener("click", clearAllTasks);
+
+  // Load tasks from local storage when the page loads
+  window.addEventListener("DOMContentLoaded", loadTasks);
+
+  function handleFormSubmit(e) {
+    e.preventDefault();
     const value = taskInput.value.trim();
     const id = new Date().getTime().toString();
 
-    if (value === "") {
-      // If the input is empty, show an alert
+    if (!value) {
       showAlert("Please enter a task", "danger");
     } else if (editFlag) {
-      // If editing, update the task
       editElement.textContent = value;
       showAlert("Task updated", "success");
       updateTaskInLocalStorage(editID, value);
       resetForm();
     } else {
-      // If adding a new task, create the task element
-      const task = document.createElement("article");
-      task.className = "task-item";
-      task.setAttribute("data-id", id);
-      task.innerHTML =
-        '<input type="checkbox" class="checkbox" />' +
-        '<p class="title">' +
-        value +
-        "</p>" +
-        '<div class="btn-container">' +
-        '<button class="delete-btn">Delete</button>' +
-        "</div>";
-      list.appendChild(task);
+      createTaskElement(id, value, false);
       showAlert("Task added", "success");
       addTaskToLocalStorage(id, value);
       resetForm();
     }
     checkTasks();
-  });
+  }
 
-  // Event listener for task actions
-  list.addEventListener("click", function (e) {
+  function handleTaskActions(e) {
+    const task = e.target.closest(".task-item");
+    if (!task) return; // Exit if no task is found
+    const id = task.getAttribute("data-id");
+
     if (e.target.classList.contains("delete-btn")) {
-      const task = e.target.closest(".task-item");
-      const id = task.getAttribute("data-id");
       list.removeChild(task);
       showAlert("Task removed", "danger");
       removeTaskFromLocalStorage(id);
-      checkTasks();
     } else if (e.target.classList.contains("checkbox")) {
-      // If the checkbox is clicked, toggle task completion
-      const task = e.target.closest(".task-item");
-      const id = task.getAttribute("data-id");
-      if (task.classList.contains("completed")) {
-        task.classList.remove("completed");
-      } else {
-        task.classList.add("completed");
-      }
-      toggleTaskCompletionInLocalStorage(id); // Update completion status in local storage
-      showAlert("Task status updated", "success");
+      const isCompleted = task.classList.toggle("completed");
+      toggleTaskCompletionInLocalStorage(id);
+      showAlert(
+        `Task marked as ${isCompleted ? "completed" : "incomplete"}`,
+        "success"
+      );
     }
-  });
+    checkTasks();
+  }
 
-  // Event listener for clearing all tasks
-  clearBtn.addEventListener("click", function () {
+  function clearAllTasks() {
     list.innerHTML = "";
     showAlert("All tasks cleared", "danger");
     localStorage.removeItem("tasks");
     checkTasks();
-  });
+  }
 
-  // Load tasks from local storage when the page loads
-  window.addEventListener("DOMContentLoaded", function () {
+  function loadTasks() {
     const tasks = getTasksFromLocalStorage();
-    for (let i = 0; i < tasks.length; i++) {
-      const task = tasks[i];
-      const taskElement = document.createElement("article");
-      taskElement.className = "task-item";
-      if (task.completed) {
-        taskElement.className += " completed";
-      }
-      taskElement.setAttribute("data-id", task.id);
-      taskElement.innerHTML =
-        '<input type="checkbox" class="checkbox" ' +
-        (task.completed ? "checked" : "") +
-        " />" +
-        '<p class="title">' +
-        task.value +
-        "</p>" +
-        '<div class="btn-container">' +
-        '<button class="delete-btn">Delete</button>' +
-        "</div>";
-      list.appendChild(taskElement);
-    }
+    tasks.forEach(({ id, value, completed }) =>
+      createTaskElement(id, value, completed)
+    );
     checkTasks();
-  });
+  }
 
-  // Show an alert message
+  function createTaskElement(id, value, completed) {
+    const task = document.createElement("article");
+    task.className = `task-item${completed ? " completed" : ""}`;
+    task.setAttribute("data-id", id);
+    task.innerHTML = `
+      <input type="checkbox" class="checkbox" ${completed ? "checked" : ""} />
+      <p class="title">${value}</p>
+      <div class="btn-container">
+        <button class="delete-btn">Delete</button>
+      </div>`;
+    list.appendChild(task);
+  }
+
   function showAlert(message, type) {
     alert.textContent = message;
-    alert.className = "alert alert-" + type;
-    setTimeout(function () {
+    alert.className = `alert alert-${type}`;
+    setTimeout(() => {
       alert.textContent = "";
       alert.className = "alert";
     }, 1000);
   }
 
-  // Reset the form to its default state
   function resetForm() {
     taskInput.value = "";
     editFlag = false;
@@ -124,68 +110,40 @@
     submitBtn.textContent = "Add Task";
   }
 
-  // Check if there are tasks and update the UI
   function checkTasks() {
-    if (list.children.length > 0) {
-      // If there are tasks, show the container and clear button
-      if (!container.classList.contains("show-container")) {
-        container.classList.add("show-container");
-      }
-      clearBtn.style.display = "block";
-    } else {
-      // If no tasks, hide the container and clear button
-      if (container.classList.contains("show-container")) {
-        container.classList.remove("show-container");
-      }
-      clearBtn.style.display = "none";
-    }
+    const hasTasks = list.children.length > 0;
+    container.classList.toggle("show-container", hasTasks);
+    clearBtn.style.display = hasTasks ? "block" : "none";
   }
 
-  // Get tasks from local storage
   function getTasksFromLocalStorage() {
     return JSON.parse(localStorage.getItem("tasks") || "[]");
   }
 
-  // Add a task to local storage
   function addTaskToLocalStorage(id, value) {
     const tasks = getTasksFromLocalStorage();
-    tasks.push({ id: id, value: value, completed: false });
+    tasks.push({ id, value, completed: false });
     localStorage.setItem("tasks", JSON.stringify(tasks));
   }
 
-  // Remove a task from local storage
   function removeTaskFromLocalStorage(id) {
-    const tasks = getTasksFromLocalStorage();
-    const filteredTasks = [];
-    for (let i = 0; i < tasks.length; i++) {
-      if (tasks[i].id !== id) {
-        filteredTasks.push(tasks[i]);
-      }
-    }
-    localStorage.setItem("tasks", JSON.stringify(filteredTasks));
+    const tasks = getTasksFromLocalStorage().filter((task) => task.id !== id);
+    localStorage.setItem("tasks", JSON.stringify(tasks));
   }
 
-  // Toggle task completion in local storage
   function toggleTaskCompletionInLocalStorage(id) {
     const tasks = getTasksFromLocalStorage();
-    for (let i = 0; i < tasks.length; i++) {
-      if (tasks[i].id === id) {
-        tasks[i].completed = !tasks[i].completed;
-        break;
-      }
-    }
+    tasks.forEach((task) => {
+      if (task.id === id) task.completed = !task.completed;
+    });
     localStorage.setItem("tasks", JSON.stringify(tasks));
   }
 
-  // Update a task in local storage
   function updateTaskInLocalStorage(id, value) {
     const tasks = getTasksFromLocalStorage();
-    for (let i = 0; i < tasks.length; i++) {
-      if (tasks[i].id === id) {
-        tasks[i].value = value;
-        break;
-      }
-    }
+    tasks.forEach((task) => {
+      if (task.id === id) task.value = value;
+    });
     localStorage.setItem("tasks", JSON.stringify(tasks));
   }
 })();
